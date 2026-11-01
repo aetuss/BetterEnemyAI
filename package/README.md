@@ -11,6 +11,7 @@ Stops enemies from circling around you after they attack, and makes them give up
   - An enemy gives up if it can't see or hear you for 10 seconds (vanilla: 30 seconds).
   - An enemy gives up if 20 seconds pass without it hitting you or taking damage from you (vanilla: 60 seconds).
   - An enemy gives up once it gets 60 meters away from where the chase started.
+  - A ground enemy gives up if it has no path to you for 6 seconds (say, you're up on a rock) and you aren't hitting it. Near your buildings, enemies that attack buildings keep their vanilla behavior, so your base can still be raided.
   - An enemy that gave up won't look for a new target for 8 seconds. If you hit it, it fights back right away.
   - An enemy that gave up walks straight back to where the chase started, instead of slowly wandering around where it stopped (vanilla).
 

@@ -20,7 +20,7 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.2.0";
+        public const string Version = "1.3.0";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
@@ -38,6 +38,7 @@ namespace BetterEnemyAI
         internal static Synced<float> GiveUpWhenNotSensed;
         internal static Synced<float> GiveUpWhenNoCombat;
         internal static Synced<float> MaxChaseDistance;
+        internal static Synced<float> GiveUpWhenUnreachable;
         internal static Synced<float> IgnoreAfterGiveUp;
         internal static Synced<bool> ReturnAfterGiveUp;
 
@@ -100,6 +101,9 @@ namespace BetterEnemyAI
                 "An enemy gives up the chase if for this many seconds it neither hits you nor takes damage from you (even if it can see you). Vanilla is 60. 0 = off.");
             MaxChaseDistance = Bind("3 - Chase", "MaxChaseDistance", 60f,
                 "An enemy gives up the chase once it is this many meters away from where the chase started (and it hasn't taken damage in the last 5 seconds). 0 = off.");
+            GiveUpWhenUnreachable = Bind("3 - Chase", "GiveUpWhenUnreachableSeconds", 6f,
+                "A ground enemy gives up the chase if it can't find a path to you (e.g. you're on a rock) for this many seconds and you haven't hurt it in the last 5 seconds. " +
+                "Near your buildings, enemies that attack buildings keep vanilla behavior. 0 = off.");
             IgnoreAfterGiveUp = Bind("3 - Chase", "IgnoreAfterGiveUpSeconds", 8f,
                 "An enemy that gave up won't look for a new target for this many seconds. If you hit it, it fights back right away.");
             ReturnAfterGiveUp = Bind("3 - Chase", "ReturnAfterGiveUp", true,
@@ -176,6 +180,10 @@ namespace BetterEnemyAI
 
         public Character ChaseTarget;
         public Vector3 ChaseStart;
+
+        // When the target first became unreachable by path (-1 = reachable), and when to check again.
+        public float UnreachableSince = -1f;
+        public float NextPathCheck;
 
         // Walking back to where the chase started after giving up.
         public bool Returning;
@@ -359,9 +367,39 @@ namespace BetterEnemyAI
     static class ChasePatch
     {
         const float HurtGrace = 5f;
+        const float PathCheckInterval = 1f;
+        const float BaseRadius = 12f;         // player pieces this close to the target count as their base
 
         // Protected in BaseAI; Invoke dispatches to MonsterAI's override. Only runs on give-up.
         static readonly System.Reflection.MethodInfo setAlerted = AccessTools.Method(typeof(BaseAI), "SetAlerted");
+        static readonly Func<BaseAI, Vector3, bool> havePath =
+            AccessTools.MethodDelegate<Func<BaseAI, Vector3, bool>>(AccessTools.Method(typeof(BaseAI), "HavePath", new[] { typeof(Vector3) }));
+        static readonly List<Piece> nearbyPieces = new List<Piece>();
+
+        // True once the target has had no walkable path for `seconds` in a row. Flyers can always reach.
+        // Near the target's base, creatures that attack buildings are left to vanilla, which switches them
+        // to the buildings when it can't reach the player.
+        static bool IsUnreachable(MonsterAI ai, Character character, AiState state, Character target, float seconds)
+        {
+            if (seconds <= 0f || character.IsFlying()) return false;
+            if (Time.time >= state.NextPathCheck)
+            {
+                state.NextPathCheck = Time.time + PathCheckInterval;
+                if (havePath(ai, target.transform.position)) state.UnreachableSince = -1f;
+                else if (state.UnreachableSince < 0f) state.UnreachableSince = Time.time;
+            }
+            if (state.UnreachableSince < 0f || Time.time - state.UnreachableSince <= seconds) return false;
+            return !(ai.m_attackPlayerObjects && NearPlayerBuildings(target.transform.position));
+        }
+
+        static bool NearPlayerBuildings(Vector3 position)
+        {
+            nearbyPieces.Clear();
+            Piece.GetAllPiecesInRadius(position, BaseRadius, nearbyPieces);
+            foreach (Piece piece in nearbyPieces)
+                if (piece != null && piece.IsPlacedByPlayer()) return true;
+            return false;
+        }
 
         static void Postfix(MonsterAI __instance, Character ___m_character,
             ref Character ___m_targetCreature, ref StaticTarget ___m_targetStatic,
@@ -380,6 +418,7 @@ namespace BetterEnemyAI
                 state.ChaseTarget = target;
                 state.ChaseStart = __instance.transform.position;
                 state.Returning = false;
+                state.UnreachableSince = -1f;
             }
 
             if (!Plugin.Affects(___m_character, state)) return;
@@ -395,6 +434,9 @@ namespace BetterEnemyAI
                 giveUp = true;
             if (!giveUp && maxDistance > 0f && ___m_timeSinceHurt > HurtGrace &&
                 Vector3.Distance(__instance.transform.position, state.ChaseStart) > maxDistance)
+                giveUp = true;
+            if (!giveUp && IsUnreachable(__instance, ___m_character, state, target, settings.GiveUpWhenUnreachable) &&
+                ___m_timeSinceHurt > HurtGrace)
                 giveUp = true;
             if (!giveUp) return;
 

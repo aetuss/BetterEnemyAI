@@ -20,6 +20,7 @@ namespace BetterEnemyAI
         public float? giveUpWhenNotSensed;
         public float? giveUpWhenNoCombat;
         public float? maxChaseDistance;
+        public float? giveUpWhenUnreachable;
         public float? ignoreAfterGiveUp;
         public bool? returnAfterGiveUp;
 
@@ -33,6 +34,7 @@ namespace BetterEnemyAI
         public float GiveUpWhenNotSensed { get { return giveUpWhenNotSensed ?? Plugin.GiveUpWhenNotSensed.Value; } }
         public float GiveUpWhenNoCombat { get { return giveUpWhenNoCombat ?? Plugin.GiveUpWhenNoCombat.Value; } }
         public float MaxChaseDistance { get { return maxChaseDistance ?? Plugin.MaxChaseDistance.Value; } }
+        public float GiveUpWhenUnreachable { get { return giveUpWhenUnreachable ?? Plugin.GiveUpWhenUnreachable.Value; } }
         public float IgnoreAfterGiveUp { get { return ignoreAfterGiveUp ?? Plugin.IgnoreAfterGiveUp.Value; } }
         public bool ReturnAfterGiveUp { get { return returnAfterGiveUp ?? Plugin.ReturnAfterGiveUp.Value; } }
     }
@@ -106,6 +108,7 @@ namespace BetterEnemyAI
                 case "giveupwhennotsensedseconds": return ParseFloat(value, out s.giveUpWhenNotSensed);
                 case "giveupwhennocombatseconds": return ParseFloat(value, out s.giveUpWhenNoCombat);
                 case "maxchasedistance": return ParseFloat(value, out s.maxChaseDistance);
+                case "giveupwhenunreachableseconds": return ParseFloat(value, out s.giveUpWhenUnreachable);
                 case "ignoreaftergiveupseconds": return ParseFloat(value, out s.ignoreAfterGiveUp);
                 case "returnaftergiveup": return ParseBool(value, out s.returnAfterGiveUp);
                 case "chase":
@@ -113,6 +116,7 @@ namespace BetterEnemyAI
                     s.giveUpWhenNotSensed = 0f;
                     s.giveUpWhenNoCombat = 0f;
                     s.maxChaseDistance = 0f;
+                    s.giveUpWhenUnreachable = 0f;
                     return null;
                 case "circling":
                     if (!IsVanilla(value)) return "only Circling=Vanilla is supported";

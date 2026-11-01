@@ -20,13 +20,14 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.4.4";
+        public const string Version = "1.5.0";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
         internal static Synced<string> ExcludedCreatures;
         internal static Synced<bool> AffectBosses;
         internal static Synced<bool> AffectRaidMonsters;
+        internal static Synced<bool> TamingDoesntBlockSleep;
 
         internal static Synced<bool> NoCircleAfterAttack;
         internal static Synced<float> GroundFrontArc;
@@ -79,6 +80,8 @@ namespace BetterEnemyAI
                 "Should bosses be affected too?");
             AffectRaidMonsters = Bind("1 - General", "AffectRaidMonsters", false,
                 "Also shorten chases by creatures hunting the player during a raid? (Circling settings always apply.)");
+            TamingDoesntBlockSleep = Bind("1 - General", "TamingDoesntBlockSleep", true,
+                "An animal you're taming (fed, taming started) no longer counts as an enemy nearby when you try to sleep. Wild creatures still do.");
 
             NoCircleAfterAttack = Bind("2 - Circling", "NoCircleAfterAttack", true,
                 "Ground enemies stop circling around you after attacking while their next attack recharges; they stand still and face you instead.");

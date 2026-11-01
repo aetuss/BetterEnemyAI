@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0
+
+- An animal you're taming (fed, taming started) no longer counts as an enemy nearby when you try to sleep (`TamingDoesntBlockSleep`, on by default).
+
 ## 1.4.4
 
 - New icon.

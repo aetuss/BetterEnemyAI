@@ -20,7 +20,7 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.4.1";
+        public const string Version = "1.4.2";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
@@ -44,6 +44,9 @@ namespace BetterEnemyAI
         internal static Synced<bool> ReturnAfterGiveUp;
 
         internal static Synced<string> CreatureOverridesText;
+
+        // Local only (not synced): each player's log is their own.
+        internal static ConfigEntry<bool> DebugLog;
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -106,9 +109,9 @@ namespace BetterEnemyAI
             GiveUpWhenNoCombat = Bind("3 - Chase", "GiveUpWhenNoCombatSeconds", 20f,
                 "An enemy gives up the chase if for this many seconds it neither hits you nor takes damage from you (even if it can see you). Vanilla is 60. 0 = off.");
             MaxChaseDistance = Bind("3 - Chase", "MaxChaseDistance", 60f,
-                "An enemy gives up the chase once it is this many meters away from where the chase started (and it hasn't taken damage in the last 5 seconds). 0 = off.");
+                "An enemy gives up the chase once it is this many meters away from where the chase started (unless you're fighting: it attacked or got hit in the last 5 seconds). 0 = off.");
             GiveUpWhenUnreachable = Bind("3 - Chase", "GiveUpWhenUnreachableSeconds", 6f,
-                "A ground enemy gives up the chase if it can't find a path to you (e.g. you're on a rock) for this many seconds and you haven't hurt it in the last 5 seconds. " +
+                "A ground enemy gives up the chase if it can't find a path to you (e.g. you're on a rock) for this many seconds, unless you're fighting (it attacked or got hit in the last 5 seconds). " +
                 "Near your buildings, enemies that attack buildings keep vanilla behavior. 0 = off.");
             IgnoreAfterGiveUp = Bind("3 - Chase", "IgnoreAfterGiveUpSeconds", 8f,
                 "An enemy that gave up won't look for a new target for this many seconds. If you hit it, it fights back right away.");
@@ -121,6 +124,9 @@ namespace BetterEnemyAI
                 "Shortcuts: Enabled=false (mod off for that creature), Chase=Vanilla (normal chasing), Circling=Vanilla (normal circling), " +
                 "e.g. 'Deathsquito: Chase=Vanilla'. Use a dot for decimals. " +
                 "To see creature names, open the console (F5) near them and type: bea_creatures");
+
+            DebugLog = Config.Bind("1 - General", "DebugLog", false,
+                "Writes what enemies decide (e.g. why one gave up a chase) to the BepInEx log. Useful when reporting a problem. Not synced in multiplayer.");
 
             ExcludedCreatures.Changed += ParseExcluded;
             ParseExcluded();
@@ -147,6 +153,11 @@ namespace BetterEnemyAI
             if (character.IsTamed() || character.GetFaction() == Character.Faction.Players) return false;
             if (character.IsBoss() && !AffectBosses.Value) return false;
             return !excluded.Contains(state.PrefabName) && state.Settings.Enabled;
+        }
+
+        internal static void Debug(string message)
+        {
+            if (DebugLog != null && DebugLog.Value) Log.LogInfo(message);
         }
 
         internal static bool IsExcluded(string prefabName)
@@ -193,6 +204,21 @@ namespace BetterEnemyAI
 
         // Walking around to the target's front after an attack (RepositionPatch).
         public bool Repositioning;
+
+        // Backing off to get a run-up for a minimum-range attack (RunUpPatch).
+        public bool RunUpPending;
+        bool? isCharger;
+
+        // Whether all of its attacks need a run-up (a boar's charge). Its weapons don't change, so cache it.
+        public bool IsCharger(Character character)
+        {
+            if (!isCharger.HasValue)
+            {
+                Humanoid humanoid = character as Humanoid;
+                isCharger = humanoid != null && RunUpPatch.ShortestMinRange(humanoid) > 0f;
+            }
+            return isCharger.Value;
+        }
 
         // Walking back to where the chase started after giving up.
         public bool Returning;
@@ -424,8 +450,11 @@ namespace BetterEnemyAI
             float offset = Mathf.DeltaAngle(facing, bearing);
             float standDistance = StandDistance(___m_character, target);
 
-            // Hysteresis: once walking around, keep going until well inside the arc.
-            if (Mathf.Abs(offset) > arc) state.Repositioning = true;
+            // Chargers don't walk around: backing off for their run-up, then walking around, reads as circling.
+            // They just wait at run-up distance facing the target. Others walk around with hysteresis: once
+            // going, keep going until well inside the arc.
+            if (state.IsCharger(___m_character)) state.Repositioning = false;
+            else if (Mathf.Abs(offset) > arc) state.Repositioning = true;
             else if (Mathf.Abs(offset) < arc * BackInFront) state.Repositioning = false;
 
             chargeStop(ai);
@@ -485,6 +514,8 @@ namespace BetterEnemyAI
     {
         const float Margin = 1f;
 
+        static readonly System.Reflection.FieldInfo updateWeaponTimer = AccessTools.Field(typeof(MonsterAI), "m_updateWeaponTimer");
+
         static readonly Func<BaseAI, float, Vector3, float, bool, bool> moveTo =
             AccessTools.MethodDelegate<Func<BaseAI, float, Vector3, float, bool, bool>>(
                 AccessTools.Method(typeof(BaseAI), "MoveTo", new[] { typeof(float), typeof(Vector3), typeof(float), typeof(bool) }));
@@ -505,15 +536,26 @@ namespace BetterEnemyAI
             Vector3 fromTarget = ai.transform.position - target.transform.position;
             fromTarget.y = 0f;
             float distance = fromTarget.magnitude;
-            if (distance >= runUp) return true;
+            if (distance >= runUp)
+            {
+                // Out of minimum range: re-pick the weapon now rather than on vanilla's next weapon check.
+                if (state.RunUpPending)
+                {
+                    updateWeaponTimer.SetValue(ai, 0f);
+                    state.RunUpPending = false;
+                }
+                return true;
+            }
 
             Vector3 away = distance > 0.01f ? fromTarget / distance : -ai.transform.forward;
             moveTo(ai, __0, target.transform.position + away * (runUp + Margin), 0.5f, true);
+            if (!state.RunUpPending) Plugin.Debug(state.PrefabName + " backs off " + runUp + " m for a run-up");
+            state.RunUpPending = true;
             return false;
         }
 
         // The distance at which the first of its weapons becomes usable again; 0 if one has no minimum.
-        static float ShortestMinRange(Humanoid humanoid)
+        internal static float ShortestMinRange(Humanoid humanoid)
         {
             float shortest = float.MaxValue;
             foreach (ItemDrop.ItemData item in humanoid.GetInventory().GetAllItems())
@@ -528,7 +570,7 @@ namespace BetterEnemyAI
     [HarmonyPatch(typeof(MonsterAI), "UpdateTarget")]
     static class ChasePatch
     {
-        const float HurtGrace = 5f;
+        const float CombatGrace = 5f;          // seconds since last attack or hit that still count as fighting
         const float PathCheckInterval = 1f;
         const float BaseRadius = 12f;         // player pieces this close to the target count as their base
 
@@ -591,16 +633,21 @@ namespace BetterEnemyAI
             float noCombat = settings.GiveUpWhenNoCombat;
             float maxDistance = settings.MaxChaseDistance;
 
-            bool giveUp = notSensed > 0f && ___m_timeSinceSensedTargetCreature > notSensed;
-            if (!giveUp && noCombat > 0f && ___m_timeSinceAttacking > noCombat && ___m_timeSinceHurt > noCombat)
-                giveUp = true;
-            if (!giveUp && maxDistance > 0f && ___m_timeSinceHurt > HurtGrace &&
+            // Distance and reachability only count outside a fight: not while it's attacking or being hit,
+            // or it could give up mid-fight and re-alert moments later (wolves howl on every alert).
+            bool inFight = ___m_timeSinceHurt <= CombatGrace || ___m_timeSinceAttacking <= CombatGrace;
+            string reason = null;
+            if (notSensed > 0f && ___m_timeSinceSensedTargetCreature > notSensed)
+                reason = "couldn't see or hear the target";
+            else if (noCombat > 0f && ___m_timeSinceAttacking > noCombat && ___m_timeSinceHurt > noCombat)
+                reason = "no combat for " + noCombat + " s";
+            else if (!inFight && maxDistance > 0f &&
                 Vector3.Distance(__instance.transform.position, state.ChaseStart) > maxDistance)
-                giveUp = true;
-            if (!giveUp && IsUnreachable(__instance, ___m_character, state, target, settings.GiveUpWhenUnreachable) &&
-                ___m_timeSinceHurt > HurtGrace)
-                giveUp = true;
-            if (!giveUp) return;
+                reason = "chased farther than " + maxDistance + " m";
+            else if (IsUnreachable(__instance, ___m_character, state, target, settings.GiveUpWhenUnreachable) && !inFight)
+                reason = "no path to the target";
+            if (reason == null) return;
+            Plugin.Debug(state.PrefabName + " gave up the chase: " + reason);
 
             // Same reset vanilla does when it gives up, with a configurable re-target delay.
             setAlerted.Invoke(__instance, new object[] { false });

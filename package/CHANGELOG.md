@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2
+
+- Fixed enemies giving up mid-fight (they then re-alerted moments later, which made wolves howl again): the distance and no-path rules now wait until neither side has attacked for 5 seconds.
+- Boars and other chargers no longer walk around you after backing off for a run-up, which looked like circling; they wait at run-up distance facing you and charge as soon as their attack is usable again.
+- New `DebugLog` setting writes enemy decisions to the BepInEx log.
+
 ## 1.4.1
 
 - Fixed boars (and other enemies whose attack needs a run-up) taking a long time to attack again: they now wait outside their attack's minimum range, backing off first if they're too close.

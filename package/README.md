@@ -4,14 +4,14 @@ Stops enemies from circling around you after they attack, and makes them give up
 
 ## What changes?
 
-- **No circling after attacks:** After an attack, enemies no longer run circles around you while waiting for their next attack. If they are in range they stand still and face you; otherwise they move toward you. Enemies that end up beside or behind you, like a boar charging past, first walk back around to your front (`GroundFrontArc`), so they don't wait out of sight.
+- **No circling after attacks:** After an attack, enemies no longer run circles around you while waiting for their next attack. If they are in range they stand still and face you; otherwise they move toward you. Enemies that end up beside or behind you first walk back around to your front (`GroundFrontArc`), so they don't wait out of sight. Chargers like boars, whose attack needs a run-up, instead back off to run-up distance, turn to face you and charge again.
 - **Softer circling for flyers:** Flying enemies (deathsquitos, bats, drakes, etc.) still circle you while their attack recharges, like in vanilla, but slower and smoother. They back off about 6 meters, drift around you with changing speed and direction, stay in front of you or at your sides instead of flanking behind you, and dive again once their attack is ready. Walking toward them closes the distance instead of pushing them away. `FlyingWander` sets how much they move and `FlyingFrontArc` how far around you they may go. You can switch them back to vanilla circling or make them hover in place instead.
 - **No periodic circling:** Some enemies stop attacking every now and then to circle around their target. This is turned off.
 - **Shorter chases:**
   - An enemy gives up if it can't see or hear you for 10 seconds (vanilla: 30 seconds).
   - An enemy gives up if 20 seconds pass without it hitting you or taking damage from you (vanilla: 60 seconds).
-  - An enemy gives up once it gets 60 meters away from where the chase started.
-  - A ground enemy gives up if it has no path to you for 6 seconds (say, you're up on a rock) and you aren't hitting it. Near your buildings, enemies that attack buildings keep their vanilla behavior, so your base can still be raided.
+  - An enemy gives up once it gets 60 meters away from where the chase started, unless you're in the middle of a fight.
+  - A ground enemy gives up if it has no path to you for 6 seconds (say, you're up on a rock), unless you're in the middle of a fight. Near your buildings, enemies that attack buildings keep their vanilla behavior, so your base can still be raided.
   - An enemy that gave up won't look for a new target for 8 seconds. If you hit it, it fights back right away.
   - An enemy that gave up walks straight back to where the chase started, instead of slowly wandering around where it stopped (vanilla).
 
@@ -38,6 +38,10 @@ Any setting name from the config works. There are also three shortcuts:
 Use a dot for decimals (`1.5`). Mistakes are skipped and reported in the BepInEx log.
 
 To find creature names, stand near them, open the console (F5) and type `bea_creatures`. It lists every creature within 40 m (or `bea_creatures 100` for 100 m) and whether the mod affects it.
+
+## Reporting problems
+
+Turn on `DebugLog` (in `1 - General`) and the BepInEx log (`BepInEx/LogOutput.log`) will record what enemies decide, e.g. `Wolf gave up the chase: no path to the target`. Include those lines when you report a problem.
 
 ## Multiplayer
 

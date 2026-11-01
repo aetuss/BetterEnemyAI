@@ -20,7 +20,7 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.4.0";
+        public const string Version = "1.4.1";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
@@ -393,6 +393,8 @@ namespace BetterEnemyAI
     {
         const float Gap = 1.5f;               // meters between the two bodies when standing
         const float BackInFront = 0.7f;       // fraction of the arc to reach before repositioning stops
+        const float MinRangeMargin = 1f;      // meters beyond a weapon's minimum range to wait at
+        const float TooCloseMargin = 0.75f;   // how far inside the waiting distance before backing off
 
         static readonly Func<BaseAI, float, Vector3, float, bool, bool> moveTo =
             AccessTools.MethodDelegate<Func<BaseAI, float, Vector3, float, bool, bool>>(
@@ -420,7 +422,7 @@ namespace BetterEnemyAI
             float facing = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
             float bearing = Mathf.Atan2(fromTarget.x, fromTarget.z) * Mathf.Rad2Deg;
             float offset = Mathf.DeltaAngle(facing, bearing);
-            float standDistance = ___m_character.GetRadius() + target.GetRadius() + Gap;
+            float standDistance = StandDistance(___m_character, target);
 
             // Hysteresis: once walking around, keep going until well inside the arc.
             if (Mathf.Abs(offset) > arc) state.Repositioning = true;
@@ -437,9 +439,16 @@ namespace BetterEnemyAI
                 return false;
             }
 
-            if (fromTarget.magnitude > standDistance + 0.5f)
+            float distance = fromTarget.magnitude;
+            if (distance > standDistance + 0.5f)
             {
                 moveTo(ai, __0, __1, standDistance, true);
+            }
+            else if (distance < standDistance - TooCloseMargin)
+            {
+                // Back off to get a run-up; MoveTo turns it away, it faces the target again once there.
+                Vector3 away = distance > 0.01f ? fromTarget / distance : -ai.transform.forward;
+                moveTo(ai, __0, __1 + away * standDistance, 0.5f, true);
             }
             else
             {
@@ -447,6 +456,72 @@ namespace BetterEnemyAI
                 lookAt(ai, target.GetTopPoint());
             }
             return false;
+        }
+
+        // Where to wait, center to center. Some attacks (a boar's charge) have a minimum range and can't be
+        // used closer than that, so a creature parked too close just loiters until it happens to drift out;
+        // wait outside the current weapon's minimum range instead, but still within its reach.
+        static float StandDistance(Character character, Character target)
+        {
+            float distance = character.GetRadius() + target.GetRadius() + Gap;
+            Humanoid humanoid = character as Humanoid;
+            ItemDrop.ItemData weapon = humanoid != null ? humanoid.GetCurrentWeapon() : null;
+            if (weapon == null) return distance;
+            float minRange = weapon.m_shared.m_aiAttackRangeMin;
+            if (minRange <= 0f) return distance;
+            distance = Mathf.Max(distance, minRange + MinRangeMargin);
+            float reach = weapon.m_shared.m_aiAttackRange + target.GetRadius();
+            if (reach > minRange + MinRangeMargin) distance = Mathf.Min(distance, reach - 0.3f);
+            return distance;
+        }
+    }
+
+    // Attacks with a minimum range (a boar's charge) are unequipped entirely while the target is closer
+    // than that, and with no weapon MonsterAI falls back to idle wandering around its spawn point until it
+    // happens to drift out of range. Vanilla mostly avoids this by circling away; with NoCircleAfterAttack
+    // the creature would loiter instead, so back it off to its run-up distance.
+    [HarmonyPatch(typeof(BaseAI), "IdleMovement")]
+    static class RunUpPatch
+    {
+        const float Margin = 1f;
+
+        static readonly Func<BaseAI, float, Vector3, float, bool, bool> moveTo =
+            AccessTools.MethodDelegate<Func<BaseAI, float, Vector3, float, bool, bool>>(
+                AccessTools.Method(typeof(BaseAI), "MoveTo", new[] { typeof(float), typeof(Vector3), typeof(float), typeof(bool) }));
+
+        static bool Prefix(BaseAI __instance, float __0, Character ___m_character)
+        {
+            MonsterAI ai = __instance as MonsterAI;
+            if (ai == null) return true;
+            Humanoid humanoid = ___m_character as Humanoid;
+            if (humanoid == null || humanoid.GetCurrentWeapon() != null || ___m_character.IsFlying()) return true;
+            Character target = ai.GetTargetCreature();
+            if (target == null) return true;
+            AiState state = AiState.Get(ai);
+            if (state.Returning || !Plugin.Affects(___m_character, state) || !state.Settings.NoCircleAfterAttack) return true;
+
+            float runUp = ShortestMinRange(humanoid);
+            if (runUp <= 0f) return true;
+            Vector3 fromTarget = ai.transform.position - target.transform.position;
+            fromTarget.y = 0f;
+            float distance = fromTarget.magnitude;
+            if (distance >= runUp) return true;
+
+            Vector3 away = distance > 0.01f ? fromTarget / distance : -ai.transform.forward;
+            moveTo(ai, __0, target.transform.position + away * (runUp + Margin), 0.5f, true);
+            return false;
+        }
+
+        // The distance at which the first of its weapons becomes usable again; 0 if one has no minimum.
+        static float ShortestMinRange(Humanoid humanoid)
+        {
+            float shortest = float.MaxValue;
+            foreach (ItemDrop.ItemData item in humanoid.GetInventory().GetAllItems())
+            {
+                if (!item.IsWeapon()) continue;
+                shortest = Mathf.Min(shortest, item.m_shared.m_aiAttackRangeMin);
+            }
+            return shortest == float.MaxValue ? 0f : Mathf.Max(shortest, 0f);
         }
     }
 

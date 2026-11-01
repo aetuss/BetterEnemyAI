@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1
+
+- Fixed boars (and other enemies whose attack needs a run-up) taking a long time to attack again: they now wait outside their attack's minimum range, backing off first if they're too close.
+
 ## 1.4.0
 
 - Ground enemies that end up beside or behind you after attacking (e.g. boars charging past) walk back around to your front before waiting, instead of standing behind you (`GroundFrontArc`, also per creature).

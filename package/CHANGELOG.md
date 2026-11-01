@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.3
+
+- Sea creatures (serpents) keep their vanilla circling, and land creatures keep it while swimming, instead of trying to walk to your front or back off for a run-up in the water. Their chases are still shortened.
+
 ## 1.4.2
 
 - Fixed enemies giving up mid-fight (they then re-alerted moments later, which made wolves howl again): the distance and no-path rules now wait until neither side has attacked for 5 seconds.

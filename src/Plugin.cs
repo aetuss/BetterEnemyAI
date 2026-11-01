@@ -20,7 +20,7 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.4.2";
+        public const string Version = "1.4.3";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
@@ -283,17 +283,23 @@ namespace BetterEnemyAI
                 state.Modified = true;
             }
             CreatureSettings settings = state.Settings;
+            // Water-only creatures (serpents) keep all their vanilla circling: circling a boat is how they
+            // fight, and "walk to the front" makes no sense there. Swimming land creatures (a neck in a lake)
+            // also keep it while in the water.
+            bool waterOnly = __instance.m_avoidLand;
+            bool swimming = ___m_character.IsSwimming();
+
             // With a front arc below 180 the vanilla circling call is kept, and RepositionPatch replaces it.
             bool reposition = settings.NoCircleAfterAttack && settings.GroundFrontArc < 180f;
-            __instance.m_circulateWhileCharging = state.Circulate && (!settings.NoCircleAfterAttack || reposition);
+            __instance.m_circulateWhileCharging = state.Circulate && (waterOnly || !settings.NoCircleAfterAttack || reposition);
             FlyingMode mode = settings.FlyingAfterAttack;
             __instance.m_circulateWhileChargingFlying = state.CirculateFlying && mode != FlyingMode.Hover;
-            __instance.m_circleTargetInterval = settings.NoPeriodicCircling ? 0f : state.CircleInterval;
+            __instance.m_circleTargetInterval = settings.NoPeriodicCircling && !waterOnly ? 0f : state.CircleInterval;
             if (___m_character.IsFlying())
             {
                 if (mode == FlyingMode.HitAndRetreat && state.CirculateFlying) Retreater = __instance;
             }
-            else if (reposition && state.Circulate)
+            else if (reposition && state.Circulate && !waterOnly && !swimming)
             {
                 Repositioner = __instance;
             }
@@ -525,7 +531,8 @@ namespace BetterEnemyAI
             MonsterAI ai = __instance as MonsterAI;
             if (ai == null) return true;
             Humanoid humanoid = ___m_character as Humanoid;
-            if (humanoid == null || humanoid.GetCurrentWeapon() != null || ___m_character.IsFlying()) return true;
+            if (humanoid == null || humanoid.GetCurrentWeapon() != null || ___m_character.IsFlying() ||
+                ___m_character.IsSwimming() || ai.m_avoidLand) return true;
             Character target = ai.GetTargetCreature();
             if (target == null) return true;
             AiState state = AiState.Get(ai);

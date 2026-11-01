@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.4
+
+- New icon.
+
 ## 1.4.3
 
 - Sea creatures (serpents) keep their vanilla circling, and land creatures keep it while swimming, instead of trying to walk to your front or back off for a run-up in the water. Their chases are still shortened.

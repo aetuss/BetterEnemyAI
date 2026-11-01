@@ -19,6 +19,24 @@ Tamed animals, friendly creatures and bosses are not affected (bosses can be ena
 
 All values can be changed in game with F1 (Configuration Manager) or in your mod manager's config editor. To exclude specific creatures, list their prefab names in `ExcludedCreatures`, separated by commas. Example: `Wolf,Deathsquito`
 
+### Per-creature settings
+
+`CreatureOverrides` gives specific creatures their own values. Write the creature's name, a colon, then `Setting=Value` pairs separated by commas; separate creatures with semicolons:
+
+```
+Troll: GiveUpWhenNoCombatSeconds=30, MaxChaseDistance=80; Greydwarf: GiveUpWhenNoCombatSeconds=15
+```
+
+Any setting name from the config works. There are also three shortcuts:
+
+- `Chase=Vanilla` keeps that creature's normal chasing (e.g. `Deathsquito: Chase=Vanilla`)
+- `Circling=Vanilla` keeps its normal circling
+- `Enabled=false` turns the mod off for it
+
+Use a dot for decimals (`1.5`). Mistakes are skipped and reported in the BepInEx log.
+
+To find creature names, stand near them, open the console (F5) and type `bea_creatures`. It lists every creature within 40 m (or `bea_creatures 100` for 100 m) and whether the mod affects it.
+
 ## Multiplayer
 
 Enemy AI in an area is run by the player who "owns" that area, so every player should install the mod. If you run a dedicated server, install it there too.

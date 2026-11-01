@@ -20,7 +20,7 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.0.0";
+        public const string Version = "1.1.0";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
@@ -39,6 +39,8 @@ namespace BetterEnemyAI
         internal static Synced<float> GiveUpWhenNoCombat;
         internal static Synced<float> MaxChaseDistance;
         internal static Synced<float> IgnoreAfterGiveUp;
+
+        internal static Synced<string> CreatureOverridesText;
 
         internal static Plugin Instance;
         internal static BepInEx.Logging.ManualLogSource Log;
@@ -100,8 +102,17 @@ namespace BetterEnemyAI
             IgnoreAfterGiveUp = Bind("3 - Chase", "IgnoreAfterGiveUpSeconds", 8f,
                 "An enemy that gave up won't look for a new target for this many seconds. If you hit it, it fights back right away.");
 
+            CreatureOverridesText = Bind("4 - Per creature", "CreatureOverrides", "",
+                "Different settings for specific creatures. Format: 'Name: Setting=Value, Setting=Value; Name: ...'. " +
+                "Use the setting names above, e.g. 'Troll: GiveUpWhenNoCombatSeconds=30, MaxChaseDistance=80; Greydwarf: GiveUpWhenNoCombatSeconds=15'. " +
+                "Shortcuts: Enabled=false (mod off for that creature), Chase=Vanilla (normal chasing), Circling=Vanilla (normal circling), " +
+                "e.g. 'Deathsquito: Chase=Vanilla'. Use a dot for decimals. " +
+                "To see creature names, open the console (F5) near them and type: bea_creatures");
+
             ExcludedCreatures.Changed += ParseExcluded;
             ParseExcluded();
+            CreatureOverridesText.Changed += () => CreatureOverrides.Parse(CreatureOverridesText.Value);
+            CreatureOverrides.Parse(CreatureOverridesText.Value);
 
             new Harmony(Guid).PatchAll(typeof(Plugin).Assembly);
         }
@@ -122,7 +133,12 @@ namespace BetterEnemyAI
             if (!Enabled.Value || character == null) return false;
             if (character.IsTamed() || character.GetFaction() == Character.Faction.Players) return false;
             if (character.IsBoss() && !AffectBosses.Value) return false;
-            return !excluded.Contains(state.PrefabName);
+            return !excluded.Contains(state.PrefabName) && state.Settings.Enabled;
+        }
+
+        internal static bool IsExcluded(string prefabName)
+        {
+            return excluded.Contains(prefabName);
         }
     }
 
@@ -131,6 +147,23 @@ namespace BetterEnemyAI
         static readonly ConditionalWeakTable<MonsterAI, AiState> table = new ConditionalWeakTable<MonsterAI, AiState>();
 
         public string PrefabName;
+
+        CreatureSettings settings;
+        int settingsVersion = -1;
+
+        // This creature type's effective settings, re-resolved whenever the overrides change.
+        public CreatureSettings Settings
+        {
+            get
+            {
+                if (settingsVersion != CreatureOverrides.Version)
+                {
+                    settings = CreatureOverrides.Find(PrefabName);
+                    settingsVersion = CreatureOverrides.Version;
+                }
+                return settings;
+            }
+        }
 
         // Values the creature had before we touched them, so they can be restored.
         public bool Modified;
@@ -194,10 +227,11 @@ namespace BetterEnemyAI
                 state.CircleInterval = __instance.m_circleTargetInterval;
                 state.Modified = true;
             }
-            __instance.m_circulateWhileCharging = state.Circulate && !Plugin.NoCircleAfterAttack.Value;
-            FlyingMode mode = Plugin.FlyingAfterAttack.Value;
+            CreatureSettings settings = state.Settings;
+            __instance.m_circulateWhileCharging = state.Circulate && !settings.NoCircleAfterAttack;
+            FlyingMode mode = settings.FlyingAfterAttack;
             __instance.m_circulateWhileChargingFlying = state.CirculateFlying && mode != FlyingMode.Hover;
-            __instance.m_circleTargetInterval = Plugin.NoPeriodicCircling.Value ? 0f : state.CircleInterval;
+            __instance.m_circleTargetInterval = settings.NoPeriodicCircling ? 0f : state.CircleInterval;
             if (mode == FlyingMode.HitAndRetreat && state.CirculateFlying && ___m_character.IsFlying())
                 Retreater = __instance;
         }
@@ -237,8 +271,9 @@ namespace BetterEnemyAI
             if (target == null || (target.transform.position - __1).sqrMagnitude > 0.01f) return true;
 
             AiState state = AiState.Get(ai);
+            CreatureSettings settings = state.Settings;
             float dt = __0;
-            float wander = Mathf.Max(Plugin.FlyingWander.Value, 0f);
+            float wander = Mathf.Max(settings.FlyingWander, 0f);
             Vector3 self = ai.transform.position;
 
             if (Time.time - state.LastRetreatTime > NewRetreatAfter)
@@ -249,7 +284,7 @@ namespace BetterEnemyAI
                 if (away.sqrMagnitude < 0.01f) away = -ai.transform.forward;
                 state.OrbitCenter = __1;
                 state.OrbitAngle = Mathf.Atan2(away.x, away.z) * Mathf.Rad2Deg;
-                state.OrbitRadius = Mathf.Max(Plugin.RetreatDistance.Value, 1f) * UnityEngine.Random.Range(0.9f, 1.2f);
+                state.OrbitRadius = Mathf.Max(settings.RetreatDistance, 1f) * UnityEngine.Random.Range(0.9f, 1.2f);
                 state.Move = Vector3.zero;
                 state.Running = true;
             }
@@ -262,7 +297,7 @@ namespace BetterEnemyAI
             float orbit = (Mathf.PerlinNoise(s, t * 0.25f) - 0.5f) * 2.5f;
             state.OrbitAngle += orbit * OrbitSpeed * wander * dt;
 
-            float frontArc = Mathf.Clamp(Plugin.FlyingFrontArc.Value, 0f, 180f);
+            float frontArc = Mathf.Clamp(settings.FlyingFrontArc, 0f, 180f);
             if (frontArc < 180f)
             {
                 Vector3 forward = target.transform.forward;
@@ -340,9 +375,10 @@ namespace BetterEnemyAI
             if (!Plugin.Affects(___m_character, state)) return;
             if (__instance.HuntPlayer() && !Plugin.AffectRaidMonsters.Value) return;
 
-            float notSensed = Plugin.GiveUpWhenNotSensed.Value;
-            float noCombat = Plugin.GiveUpWhenNoCombat.Value;
-            float maxDistance = Plugin.MaxChaseDistance.Value;
+            CreatureSettings settings = state.Settings;
+            float notSensed = settings.GiveUpWhenNotSensed;
+            float noCombat = settings.GiveUpWhenNoCombat;
+            float maxDistance = settings.MaxChaseDistance;
 
             bool giveUp = notSensed > 0f && ___m_timeSinceSensedTargetCreature > notSensed;
             if (!giveUp && noCombat > 0f && ___m_timeSinceAttacking > noCombat && ___m_timeSinceHurt > noCombat)
@@ -357,7 +393,7 @@ namespace BetterEnemyAI
             ___m_targetCreature = null;
             ___m_targetStatic = null;
             ___m_timeSinceAttacking = 0f;
-            ___m_updateTargetTimer = Mathf.Max(Plugin.IgnoreAfterGiveUp.Value, 0f);
+            ___m_updateTargetTimer = Mathf.Max(settings.IgnoreAfterGiveUp, 0f);
             state.ChaseTarget = null;
         }
     }

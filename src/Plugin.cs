@@ -20,7 +20,7 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.1.0";
+        public const string Version = "1.2.0";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
@@ -39,6 +39,7 @@ namespace BetterEnemyAI
         internal static Synced<float> GiveUpWhenNoCombat;
         internal static Synced<float> MaxChaseDistance;
         internal static Synced<float> IgnoreAfterGiveUp;
+        internal static Synced<bool> ReturnAfterGiveUp;
 
         internal static Synced<string> CreatureOverridesText;
 
@@ -101,6 +102,8 @@ namespace BetterEnemyAI
                 "An enemy gives up the chase once it is this many meters away from where the chase started (and it hasn't taken damage in the last 5 seconds). 0 = off.");
             IgnoreAfterGiveUp = Bind("3 - Chase", "IgnoreAfterGiveUpSeconds", 8f,
                 "An enemy that gave up won't look for a new target for this many seconds. If you hit it, it fights back right away.");
+            ReturnAfterGiveUp = Bind("3 - Chase", "ReturnAfterGiveUp", true,
+                "An enemy that gave up walks straight back to where the chase started, instead of slowly wandering around where it stopped.");
 
             CreatureOverridesText = Bind("4 - Per creature", "CreatureOverrides", "",
                 "Different settings for specific creatures. Format: 'Name: Setting=Value, Setting=Value; Name: ...'. " +
@@ -173,6 +176,12 @@ namespace BetterEnemyAI
 
         public Character ChaseTarget;
         public Vector3 ChaseStart;
+
+        // Walking back to where the chase started after giving up.
+        public bool Returning;
+        public Vector3 ReturnTarget;
+        public float ReturnBestDistance;
+        public float ReturnProgressTime;
 
         // Hit-and-retreat orbit; the noise seed keeps flyers from all moving alike.
         public float NoiseSeed = UnityEngine.Random.Range(0f, 1000f);
@@ -370,6 +379,7 @@ namespace BetterEnemyAI
             {
                 state.ChaseTarget = target;
                 state.ChaseStart = __instance.transform.position;
+                state.Returning = false;
             }
 
             if (!Plugin.Affects(___m_character, state)) return;
@@ -395,6 +405,53 @@ namespace BetterEnemyAI
             ___m_timeSinceAttacking = 0f;
             ___m_updateTargetTimer = Mathf.Max(settings.IgnoreAfterGiveUp, 0f);
             state.ChaseTarget = null;
+
+            float homeDistance = Utils.DistanceXZ(__instance.transform.position, state.ChaseStart);
+            if (settings.ReturnAfterGiveUp && homeDistance > ReturnPatch.ArriveDistance * 2f)
+            {
+                state.Returning = true;
+                state.ReturnTarget = state.ChaseStart;
+                state.ReturnBestDistance = homeDistance;
+                state.ReturnProgressTime = Time.time;
+            }
+        }
+    }
+
+    // Vanilla idles by wandering in short random hops around the spawn point, so a creature that gave up
+    // drifts home slowly, if at all. While Returning, idle movement is replaced by walking straight back
+    // to where the chase started. Any new target stops this (UpdateAI only idles without one), and so
+    // does arriving or failing to get closer for a few seconds (blocked by terrain).
+    [HarmonyPatch(typeof(BaseAI), "IdleMovement")]
+    static class ReturnPatch
+    {
+        internal const float ArriveDistance = 2f;
+        const float StuckTime = 4f;
+        const float Progress = 1f;            // meters closer that counts as progress
+
+        static readonly Func<BaseAI, float, Vector3, float, bool, bool> moveTo =
+            AccessTools.MethodDelegate<Func<BaseAI, float, Vector3, float, bool, bool>>(
+                AccessTools.Method(typeof(BaseAI), "MoveTo", new[] { typeof(float), typeof(Vector3), typeof(float), typeof(bool) }));
+
+        static bool Prefix(BaseAI __instance, float __0)
+        {
+            MonsterAI ai = __instance as MonsterAI;
+            if (ai == null) return true;
+            AiState state = AiState.Get(ai);
+            if (!state.Returning) return true;
+
+            float distance = Utils.DistanceXZ(ai.transform.position, state.ReturnTarget);
+            if (distance < state.ReturnBestDistance - Progress)
+            {
+                state.ReturnBestDistance = distance;
+                state.ReturnProgressTime = Time.time;
+            }
+            if (distance <= ArriveDistance || Time.time - state.ReturnProgressTime > StuckTime)
+            {
+                state.Returning = false;
+                return true;
+            }
+            moveTo(ai, __0, state.ReturnTarget, ArriveDistance, false);
+            return false;
         }
     }
 }

@@ -12,6 +12,7 @@ Stops enemies from circling around you after they attack, and makes them give up
   - An enemy gives up if 20 seconds pass without it hitting you or taking damage from you (vanilla: 60 seconds).
   - An enemy gives up once it gets 60 meters away from where the chase started.
   - An enemy that gave up won't look for a new target for 8 seconds. If you hit it, it fights back right away.
+  - An enemy that gave up walks straight back to where the chase started, instead of slowly wandering around where it stopped (vanilla).
 
 Tamed animals, friendly creatures and bosses are not affected (bosses can be enabled in the config). Chases by raid monsters stay vanilla by default. Creatures added by other mods are affected too.
 

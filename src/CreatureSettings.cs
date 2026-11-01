@@ -21,6 +21,7 @@ namespace BetterEnemyAI
         public float? giveUpWhenNoCombat;
         public float? maxChaseDistance;
         public float? ignoreAfterGiveUp;
+        public bool? returnAfterGiveUp;
 
         public bool Enabled { get { return enabled ?? true; } }
         public bool NoCircleAfterAttack { get { return noCircleAfterAttack ?? Plugin.NoCircleAfterAttack.Value; } }
@@ -33,6 +34,7 @@ namespace BetterEnemyAI
         public float GiveUpWhenNoCombat { get { return giveUpWhenNoCombat ?? Plugin.GiveUpWhenNoCombat.Value; } }
         public float MaxChaseDistance { get { return maxChaseDistance ?? Plugin.MaxChaseDistance.Value; } }
         public float IgnoreAfterGiveUp { get { return ignoreAfterGiveUp ?? Plugin.IgnoreAfterGiveUp.Value; } }
+        public bool ReturnAfterGiveUp { get { return returnAfterGiveUp ?? Plugin.ReturnAfterGiveUp.Value; } }
     }
 
     // Parses the CreatureOverrides setting:
@@ -105,6 +107,7 @@ namespace BetterEnemyAI
                 case "giveupwhennocombatseconds": return ParseFloat(value, out s.giveUpWhenNoCombat);
                 case "maxchasedistance": return ParseFloat(value, out s.maxChaseDistance);
                 case "ignoreaftergiveupseconds": return ParseFloat(value, out s.ignoreAfterGiveUp);
+                case "returnaftergiveup": return ParseBool(value, out s.returnAfterGiveUp);
                 case "chase":
                     if (!IsVanilla(value)) return "only Chase=Vanilla is supported";
                     s.giveUpWhenNotSensed = 0f;

@@ -1,6 +1,6 @@
 {
   "name": "BetterEnemyAI",
-  "version_number": "1.3.0",
+  "version_number": "1.4.0",
   "website_url": "",
   "description": "Enemies stop circling around you after attacking and give up long chases sooner. All values configurable.",
   "dependencies": [

@@ -4,7 +4,7 @@ Stops enemies from circling around you after they attack, and makes them give up
 
 ## What changes?
 
-- **No circling after attacks:** After an attack, enemies no longer run circles around you while waiting for their next attack. If they are in range they stand still and face you; otherwise they move toward you.
+- **No circling after attacks:** After an attack, enemies no longer run circles around you while waiting for their next attack. If they are in range they stand still and face you; otherwise they move toward you. Enemies that end up beside or behind you, like a boar charging past, first walk back around to your front (`GroundFrontArc`), so they don't wait out of sight.
 - **Softer circling for flyers:** Flying enemies (deathsquitos, bats, drakes, etc.) still circle you while their attack recharges, like in vanilla, but slower and smoother. They back off about 6 meters, drift around you with changing speed and direction, stay in front of you or at your sides instead of flanking behind you, and dive again once their attack is ready. Walking toward them closes the distance instead of pushing them away. `FlyingWander` sets how much they move and `FlyingFrontArc` how far around you they may go. You can switch them back to vanilla circling or make them hover in place instead.
 - **No periodic circling:** Some enemies stop attacking every now and then to circle around their target. This is turned off.
 - **Shorter chases:**

@@ -12,6 +12,7 @@ namespace BetterEnemyAI
 
         public bool? enabled;
         public bool? noCircleAfterAttack;
+        public float? groundFrontArc;
         public FlyingMode? flyingAfterAttack;
         public float? retreatDistance;
         public float? flyingWander;
@@ -26,6 +27,7 @@ namespace BetterEnemyAI
 
         public bool Enabled { get { return enabled ?? true; } }
         public bool NoCircleAfterAttack { get { return noCircleAfterAttack ?? Plugin.NoCircleAfterAttack.Value; } }
+        public float GroundFrontArc { get { return groundFrontArc ?? Plugin.GroundFrontArc.Value; } }
         public FlyingMode FlyingAfterAttack { get { return flyingAfterAttack ?? Plugin.FlyingAfterAttack.Value; } }
         public float RetreatDistance { get { return retreatDistance ?? Plugin.RetreatDistance.Value; } }
         public float FlyingWander { get { return flyingWander ?? Plugin.FlyingWander.Value; } }
@@ -101,6 +103,7 @@ namespace BetterEnemyAI
                 case "enabled": return ParseBool(value, out s.enabled);
                 case "nocircleafterattack": return ParseBool(value, out s.noCircleAfterAttack);
                 case "noperiodiccircling": return ParseBool(value, out s.noPeriodicCircling);
+                case "groundfrontarc": return ParseFloat(value, out s.groundFrontArc);
                 case "flyingafterattack": return ParseFlying(value, out s.flyingAfterAttack);
                 case "retreatdistance": return ParseFloat(value, out s.retreatDistance);
                 case "flyingwander": return ParseFloat(value, out s.flyingWander);

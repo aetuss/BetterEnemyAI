@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0
+
+- Ground enemies that end up beside or behind you after attacking (e.g. boars charging past) walk back around to your front before waiting, instead of standing behind you (`GroundFrontArc`, also per creature).
+
 ## 1.3.0
 
 - Ground enemies give up after 6 seconds without a path to you, unless you're hitting them or they're at your base and can attack buildings (`GiveUpWhenUnreachableSeconds`, also per creature; `Chase=Vanilla` turns it off too).

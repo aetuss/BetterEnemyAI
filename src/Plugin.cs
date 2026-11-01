@@ -20,7 +20,7 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.3.0";
+        public const string Version = "1.4.0";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
@@ -29,6 +29,7 @@ namespace BetterEnemyAI
         internal static Synced<bool> AffectRaidMonsters;
 
         internal static Synced<bool> NoCircleAfterAttack;
+        internal static Synced<float> GroundFrontArc;
         internal static Synced<FlyingMode> FlyingAfterAttack;
         internal static Synced<float> RetreatDistance;
         internal static Synced<float> FlyingWander;
@@ -78,6 +79,11 @@ namespace BetterEnemyAI
 
             NoCircleAfterAttack = Bind("2 - Circling", "NoCircleAfterAttack", true,
                 "Ground enemies stop circling around you after attacking while their next attack recharges; they stand still and face you instead.");
+            GroundFrontArc = Bind("2 - Circling", "GroundFrontArc", 90f,
+                new ConfigDescription("With NoCircleAfterAttack, a ground enemy that ends up beside or behind you after attacking (e.g. a boar charging past) " +
+                    "walks back around to your front before waiting, if it is more than this many degrees from where you face. " +
+                    "90 = it waits only in front of you, 180 = it waits wherever it is.",
+                    new AcceptableValueRange<float>(30f, 180f)));
             FlyingAfterAttack = Bind("2 - Circling", "FlyingAfterAttack", FlyingMode.HitAndRetreat,
                 "What flying enemies (deathsquitos, bats, drakes, etc.) do while their next attack recharges. " +
                 "Vanilla = circle around you as usual. HitAndRetreat = back off a short distance, hover facing you, then dive when ready. " +
@@ -185,6 +191,9 @@ namespace BetterEnemyAI
         public float UnreachableSince = -1f;
         public float NextPathCheck;
 
+        // Walking around to the target's front after an attack (RepositionPatch).
+        public bool Repositioning;
+
         // Walking back to where the chase started after giving up.
         public bool Returning;
         public Vector3 ReturnTarget;
@@ -218,12 +227,15 @@ namespace BetterEnemyAI
     [HarmonyPatch(typeof(MonsterAI), "UpdateAI")]
     static class CirclingPatch
     {
-        // The flying creature whose "circle while charging" call should become a retreat this frame.
+        // The creature whose "circle while charging" call should become a flying retreat (Retreater) or a
+        // walk to the target's front (Repositioner) this frame.
         internal static MonsterAI Retreater;
+        internal static MonsterAI Repositioner;
 
         static void Prefix(MonsterAI __instance, Character ___m_character)
         {
             Retreater = null;
+            Repositioner = null;
             AiState state = AiState.Get(__instance);
             if (!Plugin.Affects(___m_character, state))
             {
@@ -245,17 +257,26 @@ namespace BetterEnemyAI
                 state.Modified = true;
             }
             CreatureSettings settings = state.Settings;
-            __instance.m_circulateWhileCharging = state.Circulate && !settings.NoCircleAfterAttack;
+            // With a front arc below 180 the vanilla circling call is kept, and RepositionPatch replaces it.
+            bool reposition = settings.NoCircleAfterAttack && settings.GroundFrontArc < 180f;
+            __instance.m_circulateWhileCharging = state.Circulate && (!settings.NoCircleAfterAttack || reposition);
             FlyingMode mode = settings.FlyingAfterAttack;
             __instance.m_circulateWhileChargingFlying = state.CirculateFlying && mode != FlyingMode.Hover;
             __instance.m_circleTargetInterval = settings.NoPeriodicCircling ? 0f : state.CircleInterval;
-            if (mode == FlyingMode.HitAndRetreat && state.CirculateFlying && ___m_character.IsFlying())
-                Retreater = __instance;
+            if (___m_character.IsFlying())
+            {
+                if (mode == FlyingMode.HitAndRetreat && state.CirculateFlying) Retreater = __instance;
+            }
+            else if (reposition && state.Circulate)
+            {
+                Repositioner = __instance;
+            }
         }
 
         static void Postfix()
         {
             Retreater = null;
+            Repositioner = null;
         }
     }
 
@@ -360,6 +381,72 @@ namespace BetterEnemyAI
             float minY = ZoneSystem.instance.GetSolidHeight(point) + ai.m_flyAltitudeMin + 0.5f;
             if (point.y < minY) point.y = minY;
             return point;
+        }
+    }
+
+    // Ground creatures that circle in vanilla (boars, wolves, ...) often charge past the player and end up
+    // behind them; just stopping there looks odd. While their attack recharges: in front of the target
+    // (within GroundFrontArc of where it faces) they close to a short gap and stand facing it, like with
+    // NoCircleAfterAttack alone; anywhere else they walk around to the target's front first.
+    [HarmonyPatch(typeof(BaseAI), "RandomMovementArroundPoint")]
+    static class RepositionPatch
+    {
+        const float Gap = 1.5f;               // meters between the two bodies when standing
+        const float BackInFront = 0.7f;       // fraction of the arc to reach before repositioning stops
+
+        static readonly Func<BaseAI, float, Vector3, float, bool, bool> moveTo =
+            AccessTools.MethodDelegate<Func<BaseAI, float, Vector3, float, bool, bool>>(
+                AccessTools.Method(typeof(BaseAI), "MoveTo", new[] { typeof(float), typeof(Vector3), typeof(float), typeof(bool) }));
+        static readonly Action<BaseAI, Vector3> lookAt =
+            AccessTools.MethodDelegate<Action<BaseAI, Vector3>>(AccessTools.Method(typeof(BaseAI), "LookAt", new[] { typeof(Vector3) }));
+        static readonly Action<BaseAI> stopMoving =
+            AccessTools.MethodDelegate<Action<BaseAI>>(AccessTools.Method(typeof(BaseAI), "StopMoving"));
+        static readonly Action<BaseAI> chargeStop =
+            AccessTools.MethodDelegate<Action<BaseAI>>(AccessTools.Method(typeof(BaseAI), "ChargeStop"));
+
+        static bool Prefix(BaseAI __instance, float __0, Vector3 __1, Character ___m_character)
+        {
+            MonsterAI ai = CirclingPatch.Repositioner;
+            if (ai == null || ai != __instance) return true;
+            Character target = ai.GetTargetCreature();
+            if (target == null || (target.transform.position - __1).sqrMagnitude > 0.01f) return true;
+
+            AiState state = AiState.Get(ai);
+            float arc = Mathf.Clamp(state.Settings.GroundFrontArc, 0f, 180f);
+            Vector3 self = ai.transform.position;
+            Vector3 fromTarget = self - __1;
+            fromTarget.y = 0f;
+            Vector3 forward = target.transform.forward;
+            float facing = Mathf.Atan2(forward.x, forward.z) * Mathf.Rad2Deg;
+            float bearing = Mathf.Atan2(fromTarget.x, fromTarget.z) * Mathf.Rad2Deg;
+            float offset = Mathf.DeltaAngle(facing, bearing);
+            float standDistance = ___m_character.GetRadius() + target.GetRadius() + Gap;
+
+            // Hysteresis: once walking around, keep going until well inside the arc.
+            if (Mathf.Abs(offset) > arc) state.Repositioning = true;
+            else if (Mathf.Abs(offset) < arc * BackInFront) state.Repositioning = false;
+
+            chargeStop(ai);
+            if (state.Repositioning)
+            {
+                // Aim for the edge of the front area on the side the creature is already on.
+                float side = offset < 0f ? -1f : 1f;
+                float spotBearing = (facing + side * arc * 0.5f) * Mathf.Deg2Rad;
+                Vector3 spot = __1 + new Vector3(Mathf.Sin(spotBearing), 0f, Mathf.Cos(spotBearing)) * (standDistance + 0.5f);
+                moveTo(ai, __0, spot, 0.5f, true);
+                return false;
+            }
+
+            if (fromTarget.magnitude > standDistance + 0.5f)
+            {
+                moveTo(ai, __0, __1, standDistance, true);
+            }
+            else
+            {
+                stopMoving(ai);
+                lookAt(ai, target.GetTopPoint());
+            }
+            return false;
         }
     }
 

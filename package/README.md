@@ -43,7 +43,7 @@ To find creature names, stand near them, open the console (F5) and type `bea_cre
 
 ## Reporting problems
 
-Turn on `DebugLog` (in `1 - General`) and the BepInEx log (`BepInEx/LogOutput.log`) will record what enemies decide, e.g. `Wolf gave up the chase: no path to the target`. Include those lines when you report a problem.
+Turn on `DebugLog` (in `1 - General`) and the BepInEx log (`BepInEx/LogOutput.log`) will record what enemies decide, e.g. `Wolf gave up the chase: no path to the target`. Report problems and ideas on [GitHub Issues](https://github.com/aetuss/BetterEnemyAI/issues), and include those lines.
 
 ## Multiplayer
 

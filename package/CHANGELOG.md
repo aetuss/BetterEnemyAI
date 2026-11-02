@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1
+
+- Added a link for feedback and bug reports: [GitHub Issues](https://github.com/aetuss/BetterEnemyAI/issues).
+
 ## 1.5.0
 
 - An animal you're taming (fed, taming started) no longer counts as an enemy nearby when you try to sleep (`TamingDoesntBlockSleep`, on by default).

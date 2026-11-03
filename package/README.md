@@ -53,3 +53,7 @@ Enemy AI in an area is run by the player who "owns" that area, so every player s
 
 - **Settings sync:** When you join a server that has the mod, the server's settings are used for everyone, so enemies behave the same no matter who is nearby. Your own config file isn't changed; your settings come back when you leave. If the host changes a setting in game, it's sent to everyone right away. On a dedicated server, edit the server's config file and restart it.
 - **Missing mod warning:** If someone joins without the mod, the server log (and the host, in a player-hosted game) gets a message about it. A version mismatch between server and client is reported the same way.
+
+## Made with AI
+
+aetuss decided what this mod does and how it should work, and tested it in game. The code, the icon and this description were written by Claude, an AI model by Anthropic (through Claude Code).

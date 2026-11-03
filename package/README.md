@@ -47,6 +47,8 @@ Turn on `DebugLog` (in `1 - General`) and the BepInEx log (`BepInEx/LogOutput.lo
 
 ## Multiplayer
 
+**Note:** Multiplayer and dedicated servers haven't been tested yet. It's built to work there, but if something seems off, please report it on GitHub Issues.
+
 Enemy AI in an area is run by the player who "owns" that area, so every player should install the mod. If you run a dedicated server, install it there too.
 
 - **Settings sync:** When you join a server that has the mod, the server's settings are used for everyone, so enemies behave the same no matter who is nearby. Your own config file isn't changed; your settings come back when you leave. If the host changes a setting in game, it's sent to everyone right away. On a dedicated server, edit the server's config file and restart it.

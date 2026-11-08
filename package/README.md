@@ -57,3 +57,7 @@ Enemy AI in an area is run by the player who "owns" that area, so every player s
 ## Made with AI
 
 aetuss decided what this mod does and how it should work, and tested it in game. The code, the icon and this description were written by Claude, an AI model by Anthropic (through Claude Code).
+
+## License
+
+MIT. See [LICENSE](https://github.com/aetuss/BetterEnemyAI/blob/main/LICENSE) on GitHub.

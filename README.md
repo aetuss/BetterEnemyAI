@@ -27,3 +27,7 @@ Bump the version in both `src/Plugin.cs` (`Version`) and `package/manifest.json`
 ## Made with AI
 
 aetuss decided what this mod does and how it should work, and tested it in game. The code, the icon and this description were written by Claude, an AI model by Anthropic (through Claude Code).
+
+## License
+
+MIT. See [LICENSE](LICENSE).

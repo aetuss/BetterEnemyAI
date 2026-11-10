@@ -24,7 +24,7 @@ namespace BetterEnemyAI
     {
         public const string Guid = "BetterEnemyAI";
         public const string ModName = "BetterEnemyAI";
-        public const string Version = "1.5.3";
+        public const string Version = "1.5.4";
 
         // Vanilla MonsterAI gives up after 30 s unsensed / 60 s without attacking.
         internal static Synced<bool> Enabled;
@@ -159,7 +159,17 @@ namespace BetterEnemyAI
             if (!Enabled.Value || character == null) return false;
             if (character.IsTamed() || character.GetFaction() == Character.Faction.Players) return false;
             if (character.IsBoss() && !AffectBosses.Value) return false;
+            if (IsScriptedDuelFighter(state.PrefabName)) return false;
             return !excluded.Contains(state.PrefabName) && state.Settings.Enabled;
+        }
+
+        // IslandsOfValheim's Valhalla duel fighters (IoV_Einherjar, IoV_EinherjarChampion). IoV drives
+        // their AI itself (re-targets the player every 0.5 s, its own no-circling settings), so giving up,
+        // returning home or walking around to the player's front would fight it and make them run in
+        // place or turn away mid-duel.
+        internal static bool IsScriptedDuelFighter(string prefabName)
+        {
+            return prefabName != null && prefabName.StartsWith("IoV_Einherjar", StringComparison.Ordinal);
         }
 
         internal static void Debug(string message)

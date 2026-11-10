@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.4
+
+- Leaves IslandsOfValheim's Valhalla duel fighters (`IoV_Einherjar`, `IoV_EinherjarChampion`) alone. IslandsOfValheim runs their AI itself, and BetterEnemyAI's changes could make them run in place or turn away mid-duel. `bea_creatures` lists them as "IslandsOfValheim duel fighter, not affected". If you added `IoV_Einherjar` to `ExcludedCreatures` as a workaround, you can remove it.
+
 ## 1.5.3
 
 - README: says that the mod was made with AI (Claude by Anthropic), as Thunderstore asks. The DLL carries the same note in its metadata. No gameplay changes.

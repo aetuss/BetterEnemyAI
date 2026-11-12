@@ -2,7 +2,7 @@
 
 ## 1.5.4
 
-- Leaves IslandsOfValheim's Valhalla duel fighters (`IoV_Einherjar`, `IoV_EinherjarChampion`) alone. IslandsOfValheim runs their AI itself, and BetterEnemyAI's changes could make them run in place or turn away mid-duel. `bea_creatures` lists them as "IslandsOfValheim duel fighter, not affected". If you added `IoV_Einherjar` to `ExcludedCreatures` as a workaround, you can remove it.
+- Better compatibility with mods that run their own fights: creatures whose AI such a mod drives itself (like opponents in a duel) are left alone, so they don't run in place or turn away mid-fight. `bea_creatures` lists them as "driven by another mod, not affected".
 
 ## 1.5.3
 

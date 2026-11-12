@@ -59,7 +59,7 @@ namespace BetterEnemyAI
             if (!Plugin.Enabled.Value) return "mod is off";
             if (character.IsTamed() || character.GetFaction() == Character.Faction.Players) return "friendly, not affected";
             if (character.IsBoss() && !Plugin.AffectBosses.Value) return "boss, not affected";
-            if (Plugin.IsScriptedDuelFighter(state.PrefabName)) return "IslandsOfValheim duel fighter, not affected";
+            if (Plugin.IsScriptedDuelFighter(state.PrefabName)) return "driven by another mod, not affected";
             if (Plugin.IsExcluded(state.PrefabName)) return "excluded";
             if (!state.Settings.Enabled) return "turned off in CreatureOverrides";
             return state.Settings == CreatureSettings.Defaults ? "affected" : "affected, has CreatureOverrides";

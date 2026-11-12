@@ -163,13 +163,14 @@ namespace BetterEnemyAI
             return !excluded.Contains(state.PrefabName) && state.Settings.Enabled;
         }
 
-        // IslandsOfValheim's Valhalla duel fighters (IoV_Einherjar, IoV_EinherjarChampion). IoV drives
-        // their AI itself (re-targets the player every 0.5 s, its own no-circling settings), so giving up,
-        // returning home or walking around to the player's front would fight it and make them run in
-        // place or turn away mid-duel.
+        // Creatures another mod drives itself: IslandsOfValheim's duel fighters (IoV_Einherjar,
+        // IoV_EinherjarChampion, IoV_HafdisDuelist). It runs their AI itself (re-targets the player every
+        // 0.5 s, its own no-circling settings), so giving up, returning home or walking around to the
+        // player's front would fight it and make them run in place or turn away mid-duel. (Named in no
+        // player-facing text: most players of this mod don't have that one.)
         internal static bool IsScriptedDuelFighter(string prefabName)
         {
-            return prefabName != null && prefabName.StartsWith("IoV_Einherjar", StringComparison.Ordinal);
+            return prefabName != null && (prefabName.StartsWith("IoV_Einherjar", StringComparison.Ordinal) || prefabName == "IoV_HafdisDuelist");
         }
 
         internal static void Debug(string message)
